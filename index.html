@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v18.5 · LCPC 選填連結頁面瀏覽 · 素材數據細框線補齊 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v18.7 · LCPC 選填連結頁面瀏覽 · 素材數據細框線補齊 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
@@ -545,7 +545,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     unitLabel: 'CPA',
     planLabel: '預計轉換次數',
     planExpr: 'B3/B5',
-    ratio: { top: 'ROAS', num: 'conversionValue', den: '__fee', numFmt: '0.00', optional: true },
+    ratio: { top: 'ROAS', num: 'conversionValue', den: '__fee', numFmt: '#,##0.00', optional: true },
     cost: { top: 'CPA', den: 'conversions' }
   },
 };
@@ -856,8 +856,8 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     return o;
   };
   const FMT = {
-    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', ratioInt: '0%', multiple: '0.00', cost: '0.00_ ', cpa: '#,##0_);[Red](#,##0)', fee: '#,##0',
-    date: 'mm-dd-yy', budget: '"NT$"#,##0_);("NT$"#,##0)', plan: '0_);[Red](0)', unit: '0.0_);[Red](0.0)',
+    metric: '#,##0_);[Red](#,##0)', ratio: '0.00%', ratioInt: '0%', multiple: '#,##0.00', cost: '#,##0.00_ ', cpa: '#,##0_);[Red](#,##0)', fee: '#,##0',
+    date: 'mm-dd-yy', budget: '"NT$"#,##0_);("NT$"#,##0)', plan: '#,##0_);[Red](#,##0)', unit: '#,##0.0_);[Red](#,##0.0)',
   };
 
   /* ---------- 產表 ---------- */
@@ -1160,8 +1160,22 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     const latestDataDate = relevantDates.length
       ? relevantDates.reduce((latest, day) => day > latest ? day : latest, '')
       : (parsed.dateMax || '');
+    // v18.6：走期前段若尚未真正開始投遞，隱藏第一個「有實際數據」日期之前的每日列。
+    // 以本分頁納入的素材與 Campaign 彙總為準；全 0 的 Raw Data 記錄不算實際投遞。
+    // 只隱藏起始連續空白日期，投遞期間偶爾停投／無數據的日期仍保留可檢視。
+    // 保留所有原始儲存格、公式與總計範圍，不修改上方約定走期。
+    let firstActiveDate = '';
+    for (const cre of creatives) {
+      const dayMap = agg.byAdDate.get(cre.raw);
+      if (!dayMap) continue;
+      for (const [day, data] of dayMap) {
+        if (day >= config.startDate && day <= config.endDate && hasEffectiveActivity(data) &&
+            (!firstActiveDate || day < firstActiveDate)) firstActiveDate = day;
+      }
+    }
     days.forEach((day, i) => {
-      if (day > latestDataDate) ws.getRow(r0 + i).hidden = true;
+      if ((firstActiveDate && day < firstActiveDate) || day > latestDataDate)
+        ws.getRow(r0 + i).hidden = true;
     });
     set(rTot, 1, { value: '素材總計', font: { bold: true, color: { argb: WHITE } }, fill: fill(DKBLUE), border: bd('medium', 'medium', ...vSide(1)) });
     const totGroup = start => groupKeys.forEach((k, j) => {
@@ -2120,7 +2134,7 @@ function tryRestore() {
     // 走期：保留舊設定起日；新資料優先解析 Campaign 內日期，手動日期不覆蓋。
     $('fStart').value = cfg.startDate || parsed.dateMin;
     applyMetaCampaignEndDate(cfg.endDateMode === 'manual' ? cfg.endDate : '');
-    $('fStart').min = $('fEnd').min = parsed.dateMin;
+    $('fStart').min = ''; $('fEnd').min = parsed.dateMin; // 允許手動設定早於 Raw Data 首日的約定走期
     // 欄位狀態:以新 Raw Data 實際欄位為準,套舊設定的順序與勾選
     // MESSAGE 的「成果」可能是分母，先還原分母再判斷此欄是否允許出現在訊息分頁。
     messageMetricState = resolveSavedMessageMetric(cfg.messageMetricState, cfg.messageMetricRaw);
@@ -2328,7 +2342,7 @@ function renderSettings() {
   // 建立新報表：日期尚未指定時才使用 Raw Data 日期。
   if (!$('fStart').value) $('fStart').value = parsed.dateMin;
   if (!$('fEnd').value) applyMetaCampaignEndDate();
-  $('fStart').min = $('fEnd').min = parsed.dateMin;
+  $('fStart').min = ''; $('fEnd').min = parsed.dateMin; // 允許手動設定早於 Raw Data 首日的約定走期
   renderCampaignBudgets();
   applyMode();
 }
