@@ -185,7 +185,7 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
 <body>
 <header>
   <div class="wrap">
-    <h1>廣告成效報表產生器</h1><span class="sub">v18.3 · LCPC 選填連結頁面瀏覽 · 素材數據細框線補齊 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
+    <h1>廣告成效報表產生器</h1><span class="sub">v18.5 · LCPC 選填連結頁面瀏覽 · 素材數據細框線補齊 · 廣告活動走期自動辨識 · MSG 自動辨識訊息廣告 · 訊息轉換採 offsite 新的訊息對話 · CPA 保留 LCPC／LCTR</span>
     <span class="sub">Raw Data → 每日總表 + 素材數據 + 受眾彙總 · CPM / CPC / LCPC / CPV / CPA / 訊息廣告（ROAS 選配）</span>
   </div>
 </header>
@@ -1180,29 +1180,25 @@ footer{text-align:center;color:var(--slate);font-size:12px;margin-top:36px}
     // 例如 CPC 報表最後是 CTR，就放在 CTR 欄，不固定寫死 L 欄。
     const lastVisibleMetricKey = groupKeys[groupKeys.length - 1];
     const summaryLastCol = gCol(dStart, lastVisibleMetricKey);
+    // v18.5：黃色摘要兩列視為同一個完整區塊，僅保留四周粗外框。
+    // 無內部直線，也無「總預算」與「總執行率」之間的橫線；欄數自動跟隨總表。
+    const summaryOuterBorder = (c, topRow) => bd(
+      topRow ? 'medium' : null,
+      topRow ? null : 'medium',
+      c === 1 ? 'medium' : null,
+      c === summaryLastCol ? 'medium' : null
+    );
     for (let c = 1; c <= summaryLastCol; c++) {
-      const l = c === 1 ? 'medium' : 'thin';
-      const rr = c === summaryLastCol ? 'medium' : 'thin';
-      set(rTot + 1, c, { fill: fill(YELLOW), border: bd('medium', null, l, rr) });
-      set(rTot + 2, c, { fill: fill(YELLOW), border: bd('thin', 'medium', l, rr) });
+      set(rTot + 1, c, { fill: fill(YELLOW), border: summaryOuterBorder(c, true) });
+      set(rTot + 2, c, { fill: fill(YELLOW), border: summaryOuterBorder(c, false) });
     }
-    set(rTot + 1, 1, { value: '總預算', font: { bold: true }, fill: fill(YELLOW), border: bd('medium', null, 'medium', 'thin') });
-    set(rTot + 1, summaryLastCol, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('medium', null, summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
-    set(rTot + 2, 1, { value: '總執行率', font: { bold: true }, fill: fill(YELLOW), border: bd('thin', 'medium', 'medium', 'thin') });
-    set(rTot + 2, summaryLastCol, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/${colLetter(summaryLastCol)}${rTot + 1}`), numFmt: FMT.ratioInt, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: bd('thin', 'medium', summaryLastCol === 1 ? 'medium' : 'thin', 'medium'), h: 'center' });
+    set(rTot + 1, 1, { value: '總預算', font: { bold: true }, fill: fill(YELLOW), border: summaryOuterBorder(1, true) });
+    set(rTot + 1, summaryLastCol, { formula: 'B3', numFmt: FMT.fee, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: summaryOuterBorder(summaryLastCol, true), h: 'center' });
+    set(rTot + 2, 1, { value: '總執行率', font: { bold: true }, fill: fill(YELLOW), border: summaryOuterBorder(1, false) });
+    set(rTot + 2, summaryLastCol, { formula: ifErr(`${cellFor('__fee', dStart)}${rTot}/${colLetter(summaryLastCol)}${rTot + 1}`), numFmt: FMT.ratioInt, font: { bold: true, color: { argb: RED } }, fill: fill(YELLOW), border: summaryOuterBorder(summaryLastCol, false), h: 'center' });
 
-    // v18.1：每日總表的黃色摘要只佔左側總表，右側各素材不應留下白色空格。
-    // 例如 AA39:AA41、AN39:AN41（依實際欄數自動移動），
-    // 總計下方的三列整個素材區塊都要補齊灰底及框線，包含計算欄。
-    // 僅套用於素材區塊，避免覆蓋左側黃色總預算／總執行率與後續分析表。
-    blocks.forEach(start => {
-      for (let rr = rTot + 1; rr <= rTot + 3; rr++) {
-        for (let j = 0; j < groupW; j++) {
-          const c = start + j;
-          set(rr, c, { fill: fill(GREY), border: bd('thin', 'thin', ...vSide(c)) });
-        }
-      }
-    });
+    // 黃色「總預算／總執行率」摘要結束後，右側素材欄位保持完全空白。
+    // 不設定底色或框線，避免產生多餘的灰色區塊（如 M34:BD36）。
 
     /* --- 興趣群組 / 性別 / 年齡(欄位鏡射每日總表) --- */
     // 各資料區塊之間固定保留 2 個空白列（原本 1 列）。
